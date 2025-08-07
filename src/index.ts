@@ -33,16 +33,3 @@ onAuthStateChanged(auth, (user) => {
     window.location.href = "/auth";
   }
 });
-
-
-// REMOVE DIRECT MOUNT:
-// if (window.isSupportedBrowser !== false) {
-  createApp(App)
-    .use(Router)
-    .use(ErrorPage)
-    .use(MusicImagesProvider)
-    .use(RootStoresProvider)
-    .use(ModalsProvider)
-    .use(MenuProvider)
-    .mount('body')
-}
