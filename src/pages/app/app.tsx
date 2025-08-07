@@ -11,6 +11,7 @@ import { CONFIG as LIBRARY_CONFIG } from '../library/config'
 import { CSSTransition } from '~/components/css-transition/css-transition'
 import { PlayerOverlayContext } from '~/components/scroll-container/scroll-container'
 import * as styles from './app.css'
+import Auth from '../auth/auth'
 
 const useIsRoute = (routes: readonly string[]) => {
   const matchers = routes.map((r) => useMatch(() => r))
@@ -23,9 +24,15 @@ const useIsRoute = (routes: readonly string[]) => {
 export const App = () => {
   useSetupApp()
 
-  const Routes = useRoutes(ROUTES)
-  const isRouting = useIsRouting()
+  const Routes = useRoutes([
+    ...ROUTES,
+    {
+      path: '/auth',
+      component: Auth
+    }
+  ])
 
+  const isRouting = useIsRouting()
   const isPlayerRoute = useIsRoute(['/player', '/player/queue'])
   const isLibraryRoute = useIsRoute(
     LIBRARY_CONFIG.map((c) => `/library/${c.path}`),
@@ -34,7 +41,6 @@ export const App = () => {
 
   createEffect(() => {
     const isLibrary = isLibraryRoute()
-    // Deffer setting values only after page changed.
     requestAnimationFrame(() => {
       setWasLibaryPrevRoute(isLibrary)
     })
@@ -72,7 +78,6 @@ export const App = () => {
           enter={styles.itemEnter}
           exit={styles.itemExit}
           move
-          // initial={isPageLoaded}
         >
           <Toaster />
           {!isPlayerRoute() && <MiniPlayer />}
