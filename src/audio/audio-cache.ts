@@ -315,13 +315,14 @@ export const downloadAudio = async (url: string): Promise<void> => {
   }
   
   const contentLength = response.headers.get('content-length')
-  const isLargeFile = contentLength ? parseInt(contentLength) > 50 * 1024 * 1024 : false
+  const fileSizeBytes = contentLength ? parseInt(contentLength) : 0
+  const fileSizeMB = fileSizeBytes / (1024 * 1024)
   
   let blob: Blob
   
-  // Use different approach for mobile devices with large files
-  if (isMobile && isLargeFile) {
-    console.log(`[AudioDownload] Using ArrayBuffer approach for mobile large file`)
+  // Use ArrayBuffer approach for mobile devices or large files (>20MB)
+  if (isMobile || fileSizeBytes > 20 * 1024 * 1024) {
+    console.log(`[AudioDownload] Using ArrayBuffer approach for ${isMobile ? 'mobile' : 'large file'} (${fileSizeMB.toFixed(1)}MB)`)
     try {
       const arrayBuffer = await response.arrayBuffer()
       console.log(`[AudioDownload] ArrayBuffer created, size: ${arrayBuffer.byteLength} bytes`)
@@ -334,14 +335,27 @@ export const downloadAudio = async (url: string): Promise<void> => {
       throw new Error(`ArrayBuffer conversion failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   } else {
-    // Standard blob approach
+    // Standard blob approach for desktop with smaller files
     try {
       console.log(`[AudioDownload] Converting response to blob...`)
       blob = await response.blob()
       console.log(`[AudioDownload] Blob created, size: ${blob.size} bytes, type: ${blob.type}`)
     } catch (error) {
-      console.error(`[AudioDownload] Failed to create blob:`, error)
-      throw new Error(`Failed to create blob: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(`[AudioDownload] Standard blob approach failed, trying ArrayBuffer fallback:`, error)
+      
+      // Fallback to ArrayBuffer if blob() fails
+      try {
+        console.log(`[AudioDownload] Trying ArrayBuffer fallback...`)
+        const arrayBuffer = await response.arrayBuffer()
+        console.log(`[AudioDownload] Fallback ArrayBuffer created, size: ${arrayBuffer.byteLength} bytes`)
+        
+        const contentType = response.headers.get('content-type') || 'application/octet-stream'
+        blob = new Blob([arrayBuffer], { type: contentType })
+        console.log(`[AudioDownload] Fallback blob created, size: ${blob.size} bytes`)
+      } catch (fallbackError) {
+        console.error(`[AudioDownload] Both blob() and ArrayBuffer fallback failed:`, fallbackError)
+        throw new Error(`Failed to create blob: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
   }
   
@@ -350,8 +364,8 @@ export const downloadAudio = async (url: string): Promise<void> => {
     throw new Error('Received empty blob')
   }
   
-  if (isMobile && isLargeFile) {
-    console.warn(`[AudioDownload] Large file (${(blob.size / 1024 / 1024).toFixed(1)}MB) on mobile device`)
+  if (isMobile && fileSizeMB > 20) {
+    console.warn(`[AudioDownload] Large file (${fileSizeMB.toFixed(1)}MB) on mobile device`)
   }
   
   const contentType = response.headers.get('content-type') || 'application/octet-stream'
