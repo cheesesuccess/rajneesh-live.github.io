@@ -53,7 +53,9 @@ export const serviceWorker = ({
       // Vite always removes import meta https://github.com/vitejs/vite/issues/3380
       // so use document.baseURI instead as a workaround
       if (fileRefs.has(referenceId)) {
-        return `new URL('${fileName}', document.baseURI).href`
+        // Use absolute path for service worker to ensure it's loaded from root
+        // regardless of current page location
+        return `new URL('/${fileName}', location.origin).href`
       }
 
       return undefined
