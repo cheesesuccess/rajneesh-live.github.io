@@ -263,6 +263,31 @@ export const listCachedUrls = async () => {
   }
 }
 
+export const isUrlCached = async (url: string): Promise<boolean> => {
+  try {
+    const db = await openDB()
+    const transaction = db.transaction([STORE_NAME], 'readonly')
+    const store = transaction.objectStore(STORE_NAME)
+    
+    return new Promise((resolve, reject) => {
+      const request = store.count(url)
+      
+      request.onsuccess = () => {
+        const isCached = request.result > 0
+        resolve(isCached)
+      }
+      
+      request.onerror = () => {
+        console.error(`[AudioCache] Error checking cache for: ${url}`, request.error)
+        reject(request.error)
+      }
+    })
+  } catch (error) {
+    console.error(`[AudioCache] Error accessing IndexedDB for cache check:`, error)
+    return false
+  }
+}
+
 // Make cache functions available globally for debugging
 if (typeof window !== 'undefined') {
   (window as any).audioCache = {

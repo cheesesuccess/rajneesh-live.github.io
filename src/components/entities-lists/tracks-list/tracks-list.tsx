@@ -4,6 +4,7 @@ import {
   JSXElement,
   Show,
   VoidComponent,
+  createEffect,
 } from 'solid-js'
 import { useNavigate } from 'solid-app-router'
 import {
@@ -17,6 +18,7 @@ import { MenuItem } from '../../menu/menu'
 import { useEntitiesStore, usePlayerStore } from '../../../stores/stores'
 import { useModals } from '../../modals/modals'
 import { ListItem } from '~/components/list-item/listi-tem'
+import { isUrlCached } from '../../../audio/audio-cache'
 import * as styles from './tracks-list.css'
 
 const UNKNOWN_ITEM_STRING = '<unknown>'
@@ -54,6 +56,25 @@ const TrackListItem: VoidComponent<TracksListItemProps> = (props) => {
   const [playerState] = usePlayerStore()
 
   const track = () => entities.tracks[props.item] as Track
+
+  // Check if track is cached
+  const [isCached, setIsCached] = createSignal(false)
+  
+  createEffect(() => {
+    const trackItem = track()
+    if (!trackItem?.fileWrapper || trackItem.fileWrapper.type !== 'url') {
+      setIsCached(false)
+      return
+    }
+    
+    // Check cache status for URL-based tracks
+    isUrlCached(trackItem.fileWrapper.url)
+      .then(setIsCached)
+      .catch((error) => {
+        console.error('Error checking cache status:', error)
+        setIsCached(false)
+      })
+  })
 
   const getTrackProgressTime = (trackId: string) => {
     const { activeMinutes, currentActiveMinute } = playerState
@@ -184,7 +205,7 @@ const TrackListItem: VoidComponent<TracksListItemProps> = (props) => {
         </Show>
       }
       text={track().name}
-      secondaryText={artistsToString(track().artists)}
+      secondaryText={`${isCached() === true ? '☑ ' : ''}${artistsToString(track().artists)}`}
       trailing={
         <>
           <div class={styles.album}>{track().album || UNKNOWN_ITEM_STRING}</div>
