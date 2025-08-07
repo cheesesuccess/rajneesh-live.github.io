@@ -298,6 +298,9 @@ export const downloadAudio = async (url: string): Promise<void> => {
     return
   }
   
+  // Check for mobile device
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  
   // Fetch the audio file
   const fetchStart = performance.now()
   const response = await fetch(url)
@@ -311,28 +314,58 @@ export const downloadAudio = async (url: string): Promise<void> => {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
   
-  const blob = await response.blob()
-  console.log(`[AudioDownload] Blob created, size: ${blob.size} bytes, type: ${blob.type}`)
+  const contentLength = response.headers.get('content-length')
+  const isLargeFile = contentLength ? parseInt(contentLength) > 50 * 1024 * 1024 : false
+  
+  let blob: Blob
+  
+  // Use different approach for mobile devices with large files
+  if (isMobile && isLargeFile) {
+    console.log(`[AudioDownload] Using ArrayBuffer approach for mobile large file`)
+    try {
+      const arrayBuffer = await response.arrayBuffer()
+      console.log(`[AudioDownload] ArrayBuffer created, size: ${arrayBuffer.byteLength} bytes`)
+      
+      const contentType = response.headers.get('content-type') || 'application/octet-stream'
+      blob = new Blob([arrayBuffer], { type: contentType })
+      console.log(`[AudioDownload] Blob created from ArrayBuffer, size: ${blob.size} bytes`)
+    } catch (error) {
+      console.error(`[AudioDownload] ArrayBuffer approach failed:`, error)
+      throw new Error(`ArrayBuffer conversion failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  } else {
+    // Standard blob approach
+    try {
+      console.log(`[AudioDownload] Converting response to blob...`)
+      blob = await response.blob()
+      console.log(`[AudioDownload] Blob created, size: ${blob.size} bytes, type: ${blob.type}`)
+    } catch (error) {
+      console.error(`[AudioDownload] Failed to create blob:`, error)
+      throw new Error(`Failed to create blob: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   
   // Check if blob is empty
   if (blob.size === 0) {
     throw new Error('Received empty blob')
   }
   
-  // If no content type, try to preserve the original response content type
-  const contentType = response.headers.get('content-type') || 'application/octet-stream'
-  
-  let finalBlob = blob
-  if (!blob.type && contentType) {
-    console.log(`[AudioDownload] Blob has no type, creating new blob with content-type: ${contentType}`)
-    finalBlob = new Blob([blob], { type: contentType })
+  if (isMobile && isLargeFile) {
+    console.warn(`[AudioDownload] Large file (${(blob.size / 1024 / 1024).toFixed(1)}MB) on mobile device`)
   }
   
-  console.log(`[AudioDownload] Final blob, size: ${finalBlob.size} bytes, type: ${finalBlob.type}`)
+  const contentType = response.headers.get('content-type') || 'application/octet-stream'
+  console.log(`[AudioDownload] Final blob, size: ${blob.size} bytes, type: ${blob.type}`)
   
   // Store in IndexedDB - this must succeed for download to be considered successful
-  await storeCachedBlob(url, finalBlob, contentType)
-  console.log(`[AudioDownload] ✓ Successfully downloaded and cached: ${url}`)
+  try {
+    console.log(`[AudioDownload] Storing blob in IndexedDB...`)
+    await storeCachedBlob(url, blob, contentType)
+    console.log(`[AudioDownload] ✓ Successfully downloaded and cached: ${url}`)
+  } catch (error) {
+    console.error(`[AudioDownload] Failed to store in IndexedDB:`, error)
+    throw new Error(`Failed to store in cache: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 // Make cache functions available globally for debugging
