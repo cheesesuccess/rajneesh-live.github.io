@@ -288,6 +288,53 @@ export const isUrlCached = async (url: string): Promise<boolean> => {
   }
 }
 
+export const downloadAudio = async (url: string): Promise<void> => {
+  console.log(`[AudioDownload] Starting download: ${url}`)
+  
+  // Check if already cached
+  const cachedBlob = await getCachedBlob(url)
+  if (cachedBlob) {
+    console.log(`[AudioDownload] Already cached: ${url}`)
+    return
+  }
+  
+  // Fetch the audio file
+  const fetchStart = performance.now()
+  const response = await fetch(url)
+  const fetchTime = performance.now() - fetchStart
+  
+  console.log(`[AudioDownload] Fetch completed in ${fetchTime.toFixed(2)}ms, status: ${response.status}`)
+  console.log(`[AudioDownload] Response content-type:`, response.headers.get('content-type'))
+  console.log(`[AudioDownload] Response content-length:`, response.headers.get('content-length'))
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  
+  const blob = await response.blob()
+  console.log(`[AudioDownload] Blob created, size: ${blob.size} bytes, type: ${blob.type}`)
+  
+  // Check if blob is empty
+  if (blob.size === 0) {
+    throw new Error('Received empty blob')
+  }
+  
+  // If no content type, try to preserve the original response content type
+  const contentType = response.headers.get('content-type') || 'application/octet-stream'
+  
+  let finalBlob = blob
+  if (!blob.type && contentType) {
+    console.log(`[AudioDownload] Blob has no type, creating new blob with content-type: ${contentType}`)
+    finalBlob = new Blob([blob], { type: contentType })
+  }
+  
+  console.log(`[AudioDownload] Final blob, size: ${finalBlob.size} bytes, type: ${finalBlob.type}`)
+  
+  // Store in IndexedDB - this must succeed for download to be considered successful
+  await storeCachedBlob(url, finalBlob, contentType)
+  console.log(`[AudioDownload] ✓ Successfully downloaded and cached: ${url}`)
+}
+
 // Make cache functions available globally for debugging
 if (typeof window !== 'undefined') {
   (window as any).audioCache = {
