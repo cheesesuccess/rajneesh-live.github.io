@@ -1,93 +1,84 @@
+// src/pages/auth.tsx
 
-import { createSignal, Show } from 'solid-js';
-import { login, signup, resetPassword } from '~/utils/auth';
-import * as styles from '../settings/settings.css'; // Reuse existing styling
+import { createSignal } from 'solid-js'
+import { useNavigate } from 'solid-app-router'
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from 'firebase/auth'
+import { auth } from '~/firebase/config'
+import '~/styles/auth.css' // Optional: custom styles
 
-const Auth = () => {
-  const [email, setEmail] = createSignal('');
-  const [password, setPassword] = createSignal('');
-  const [message, setMessage] = createSignal('');
-  const [mode, setMode] = createSignal<'login' | 'signup' | 'reset'>('login');
+export default function AuthPage() {
+  const navigate = useNavigate()
+  const [mode, setMode] = createSignal<'login' | 'signup' | 'forgot'>('login')
+  const [email, setEmail] = createSignal('')
+  const [password, setPassword] = createSignal('')
+  const [error, setError] = createSignal('')
+  const [message, setMessage] = createSignal('')
 
-  const handleAction = async () => {
+  const handleLogin = async () => {
     try {
-      if (mode() === 'signup') {
-        await signup(email(), password());
-        setMessage('Signup successful!');
-      } else if (mode() === 'login') {
-        await login(email(), password());
-        setMessage('Login successful!');
-      } else if (mode() === 'reset') {
-        await resetPassword(email());
-        setMessage('Reset email sent!');
-      }
+      await signInWithEmailAndPassword(auth, email(), password())
+      navigate('/')
     } catch (err) {
-      setMessage(err.message);
+      setError('Invalid email or password.')
     }
-  };
+  }
+
+  const handleSignUp = async () => {
+    try {
+      await createUserWithEmailAndPassword(auth, email(), password())
+      setMessage('Account created! Please log in.')
+      setMode('login')
+    } catch (err) {
+      setError('Failed to create account.')
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    try {
+      await sendPasswordResetEmail(auth, email())
+      setMessage('Reset email sent! Check your inbox.')
+    } catch (err) {
+      setError('Failed to send reset email.')
+    }
+  }
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      background: 'var(--background-color)'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '2rem',
-        borderRadius: '12px',
-        background: 'white',
-        boxShadow: '0 0 20px rgba(0, 0, 0, 0.1)'
-      }}>
-        <h2 style={{ 'margin-bottom': '1rem', 'text-align': 'center' }}>
-          {mode() === 'signup' ? 'Sign Up' : mode() === 'reset' ? 'Reset Password' : 'Login'}
-        </h2>
-        <input
-          placeholder="Email"
-          value={email()}
-          onInput={(e) => setEmail(e.currentTarget.value)}
-          style={{ width: '100%', margin: '0.5rem 0', padding: '0.5rem' }}
-        />
-        <Show when={mode() !== 'reset'}>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
-            style={{ width: '100%', margin: '0.5rem 0', padding: '0.5rem' }}
-          />
-        </Show>
-        <button
-          onClick={handleAction}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            margin: '1rem 0',
-            background: 'deeppink',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          }}
-        >
-          {mode() === 'signup' ? 'Sign Up' : mode() === 'reset' ? 'Send Reset Email' : 'Login'}
-        </button>
-        <p style={{ 'text-align': 'center' }}>{message()}</p>
-        <div style={{ 'text-align': 'center' }}>
-          <Show when={mode() !== 'login'}>
-            <a href="#" onClick={() => setMode('login')}>Back to Login</a>
-          </Show>
-          <Show when={mode() === 'login'}>
-            <a href="#" onClick={() => setMode('signup')}>Need an account? Sign Up</a><br />
-            <a href="#" onClick={() => setMode('reset')}>Forgot Password?</a>
-          </Show>
-        </div>
+    <div class="auth-container">
+      <h2>{mode() === 'login' ? 'Login' : mode() === 'signup' ? 'Sign Up' : 'Forgot Password'}</h2>
+
+      <input type="email" placeholder="Email" onInput={(e) => setEmail(e.currentTarget.value)} />
+      {mode() !== 'forgot' && (
+        <input type="password" placeholder="Password" onInput={(e) => setPassword(e.currentTarget.value)} />
+      )}
+
+      {error() && <p class="error">{error()}</p>}
+      {message() && <p class="message">{message()}</p>}
+
+      {mode() === 'login' && (
+        <button onClick={handleLogin}>Login</button>
+      )}
+      {mode() === 'signup' && (
+        <button onClick={handleSignUp}>Sign Up</button>
+      )}
+      {mode() === 'forgot' && (
+        <button onClick={handleForgotPassword}>Reset Password</button>
+      )}
+
+      <div class="auth-links">
+        {mode() === 'login' && (
+          <>
+            <a onClick={() => setMode('signup')}>Need an account? Sign Up</a>
+            <a onClick={() => setMode('forgot')}>Forgot Password?</a>
+          </>
+        )}
+        {mode() !== 'login' && (
+          <a onClick={() => setMode('login')}>Back to Login</a>
+        )}
       </div>
     </div>
-  );
-};
-
-export default Auth;
+  )
+}
