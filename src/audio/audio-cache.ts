@@ -300,6 +300,7 @@ export const downloadAudio = async (url: string): Promise<void> => {
   
   // Check for mobile device
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  console.log(`[AudioDownload] Mobile detection: ${isMobile}, User agent: ${navigator.userAgent}`)
   
   // Fetch the audio file
   const fetchStart = performance.now()
@@ -320,8 +321,12 @@ export const downloadAudio = async (url: string): Promise<void> => {
   
   let blob: Blob
   
-  // Use ArrayBuffer approach for mobile devices or large files (>20MB)
-  if (isMobile || fileSizeBytes > 20 * 1024 * 1024) {
+  // Use ArrayBuffer approach for mobile devices or large files (>5MB)
+  console.log(`[AudioDownload] Decision: isMobile=${isMobile}, fileSizeBytes=${fileSizeBytes}, threshold=${5 * 1024 * 1024}`)
+  const shouldUseArrayBuffer = isMobile || fileSizeBytes > 5 * 1024 * 1024
+  console.log(`[AudioDownload] Will use ArrayBuffer: ${shouldUseArrayBuffer}`)
+  
+  if (shouldUseArrayBuffer) {
     console.log(`[AudioDownload] Using ArrayBuffer approach for ${isMobile ? 'mobile' : 'large file'} (${fileSizeMB.toFixed(1)}MB)`)
     try {
       const arrayBuffer = await response.arrayBuffer()
@@ -364,7 +369,7 @@ export const downloadAudio = async (url: string): Promise<void> => {
     throw new Error('Received empty blob')
   }
   
-  if (isMobile && fileSizeMB > 20) {
+  if (isMobile && fileSizeMB > 5) {
     console.warn(`[AudioDownload] Large file (${fileSizeMB.toFixed(1)}MB) on mobile device`)
   }
   
